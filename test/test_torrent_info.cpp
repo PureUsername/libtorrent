@@ -335,6 +335,31 @@ static test_torrent_t const test_torrents[] =
 			TEST_CHECK(ti->info_hashes().has_v2());
 		}
 	},
+	{ "empty-files-1.torrent", [](torrent_info const* ti) {
+			TEST_CHECK(ti->info_hashes().has_v1());
+			TEST_CHECK(ti->info_hashes().has_v2());
+		}
+	},
+	{ "empty-files-2.torrent", [](torrent_info const* ti) {
+			TEST_CHECK(ti->info_hashes().has_v1());
+			TEST_CHECK(ti->info_hashes().has_v2());
+		}
+	},
+	{ "empty-files-3.torrent", [](torrent_info const* ti) {
+			TEST_CHECK(ti->info_hashes().has_v1());
+			TEST_CHECK(ti->info_hashes().has_v2());
+		}
+	},
+	{ "empty-files-4.torrent", [](torrent_info const* ti) {
+			TEST_CHECK(ti->info_hashes().has_v1());
+			TEST_CHECK(ti->info_hashes().has_v2());
+		}
+	},
+	{ "empty-files-5.torrent", [](torrent_info const* ti) {
+			TEST_CHECK(ti->info_hashes().has_v1());
+			TEST_CHECK(ti->info_hashes().has_v2());
+		}
+	},
 };
 
 struct test_failing_torrent_t
@@ -966,13 +991,7 @@ TORRENT_TEST(parse_torrents)
 		// construct a piece_picker to get some more test coverage. Perhaps
 		// loading the torrent is fine, but if we can't construct a piece_picker
 		// for it, it's still no good.
-		int const block_size = std::min(ti->piece_length(), default_block_size);
-		int const blocks_per_piece
-			= (ti->piece_length() + block_size - 1) / block_size;
-		int const blocks_in_last_piece
-			= ((ti->total_size() % ti->piece_length())
-			+ block_size - 1) / block_size;
-		piece_picker pp(blocks_per_piece, blocks_in_last_piece, ti->num_pieces());
+		piece_picker pp(ti->total_size(), ti->piece_length());
 
 		TEST_CHECK(ti->piece_length() < std::numeric_limits<int>::max() / 2);
 		TEST_EQUAL(ti->v1(), ti->info_hashes().has_v1());
@@ -1291,4 +1310,3 @@ TORRENT_TEST(torrent_info_with_hashes_roundtrip)
 
 	TEST_EQUAL(out_buffer, data);
 }
-

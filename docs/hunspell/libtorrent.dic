@@ -288,7 +288,6 @@ Wallin
 Reimond
 Retz
 BEP5
-librt
 toolset
 Wojciechowski
 GTK
@@ -551,7 +550,7 @@ cpp
 tos
 BP
 qB
-LT2030
+LT2040
 iocontrol
 getname
 getpeername

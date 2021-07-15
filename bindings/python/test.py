@@ -31,6 +31,10 @@ settings = {
     'enable_upnp': False, 'listen_interfaces': '0.0.0.0:0', 'file_pool_size': 1}
 
 
+def has_deprecated():
+    return hasattr(lt, 'version')
+
+
 class test_create_torrent(unittest.TestCase):
 
     def test_from_torrent_info(self):
@@ -80,6 +84,15 @@ class test_session_stats(unittest.TestCase):
         for field_name in dir(atp):
             field = getattr(atp, field_name)
             print(field_name, field)
+
+        atp.renamed_files = {}
+        atp.merkle_tree = []
+        atp.unfinished_pieces = {}
+        atp.have_pieces = []
+        atp.banned_peers = []
+        atp.verified_pieces = []
+        atp.piece_priorities = []
+        atp.url_seeds = []
 
     def test_unique(self):
         metrics = lt.session_stats_metrics()
@@ -715,6 +728,22 @@ class test_magnet_link(unittest.TestCase):
         self.assertEqual(str(h.info_hash()), '178882f042c0c33426a6d81e0333ece346e68a68')
         self.assertEqual(str(h.info_hashes().v1), '178882f042c0c33426a6d81e0333ece346e68a68')
 
+    def test_add_deprecated_magnet_link(self):
+        ses = lt.session()
+        atp = lt.add_torrent_params()
+        atp.info_hashes = lt.info_hash_t(lt.sha1_hash(b"a" * 20))
+        h = ses.add_torrent(atp)
+
+        self.assertTrue(h.status().info_hashes == lt.info_hash_t(lt.sha1_hash(b"a" * 20)))
+
+    def test_add_magnet_link(self):
+        ses = lt.session()
+        atp = lt.add_torrent_params()
+        atp.info_hash = lt.sha1_hash(b"a" * 20)
+        h = ses.add_torrent(atp)
+
+        self.assertTrue(h.status().info_hashes == lt.info_hash_t(lt.sha1_hash(b"a" * 20)))
+
 
 class test_peer_class(unittest.TestCase):
 
@@ -791,6 +820,45 @@ class test_session(unittest.TestCase):
         sett = s.get_settings()
         self.assertEqual(sett['alert_mask'] & 0x7fffffff, 0x7fffffff)
 
+    def test_session_params(self):
+        sp = lt.session_params()
+        sp.settings = { 'alert_mask': lt.alert.category_t.all_categories }
+        s = lt.session(sp)
+        sett = s.get_settings()
+        self.assertEqual(sett['alert_mask'] & 0x7fffffff, 0x7fffffff)
+
+    def test_session_params_constructor(self):
+        sp = lt.session_params({ 'alert_mask': lt.alert.category_t.all_categories })
+        s = lt.session(sp)
+        sett = s.get_settings()
+        self.assertEqual(sett['alert_mask'] & 0x7fffffff, 0x7fffffff)
+
+    def test_session_params_ip_filter(self):
+        sp = lt.session_params()
+        sp.ip_filter.add_rule("1.1.1.1", "1.1.1.2", 1337)
+        self.assertEqual(sp.ip_filter.access("1.1.1.1"), 1337)
+        self.assertEqual(sp.ip_filter.access("1.1.1.2"), 1337)
+        self.assertEqual(sp.ip_filter.access("1.1.1.3"), 0)
+
+    def test_session_params_roundtrip_buf(self):
+
+        sp = lt.session_params()
+        sp.settings = { 'alert_mask': lt.alert.category_t.all_categories }
+
+        buf = lt.write_session_params_buf(sp)
+        sp2 = lt.read_session_params(buf)
+        self.assertEqual(sp2.settings['alert_mask'] & 0x7fffffff, 0x7fffffff)
+
+    def test_session_params_roundtrip_entry(self):
+
+        sp = lt.session_params()
+        sp.settings = { 'alert_mask': lt.alert.category_t.all_categories }
+
+        ent = lt.write_session_params(sp)
+        print(ent)
+        sp2 = lt.read_session_params(ent)
+        self.assertEqual(sp2.settings['alert_mask'] & 0x7fffffff, 0x7fffffff)
+
     def test_add_torrent(self):
         s = lt.session(settings)
         h = s.add_torrent({'ti': lt.torrent_info('base.torrent'),
@@ -800,6 +868,20 @@ class test_session(unittest.TestCase):
                        'peers': [('5.6.7.8', 6881)],
                        'banned_peers': [('8.7.6.5', 6881)],
                        'file_priorities': [1, 1, 1, 2, 0]})
+
+    def test_find_torrent(self):
+        s = lt.session(settings)
+        h = s.add_torrent({'info_hash': b"a" * 20,
+                           'save_path': '.'})
+        self.assertTrue(h.is_valid())
+
+        h2 = s.find_torrent(lt.sha1_hash(b"a" * 20))
+        self.assertTrue(h2.is_valid())
+        h3 = s.find_torrent(lt.sha1_hash(b"b" * 20))
+        self.assertFalse(h3.is_valid())
+
+        self.assertEqual(h, h2)
+        self.assertNotEqual(h, h3)
 
     def test_add_torrent_info_hash(self):
         s = lt.session(settings)
@@ -816,7 +898,21 @@ class test_session(unittest.TestCase):
             print(a)
 
         self.assertTrue(h.is_valid())
-        self.assertEqual(h.status().info_hashes, lt.info_hash_t(lt.sha1_hash(b'a' * 20), lt.sha256_hash(b'a' * 32)))
+        self.assertEqual(h.status().info_hashes, lt.info_hash_t(lt.sha256_hash(b'a' * 32)))
+
+    def test_session_status(self):
+        if not has_deprecated():
+            return
+
+        s = lt.session()
+        st = s.status()
+        print(st)
+        print(st.active_requests)
+        print(st.dht_nodes)
+        print(st.dht_node_cache)
+        print(st.dht_torrents)
+        print(st.dht_global_nodes)
+        print(st.dht_total_allocations)
 
     def test_apply_settings(self):
 

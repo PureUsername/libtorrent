@@ -773,6 +773,62 @@ namespace
 		return ret;
 	}
 
+    session_params read_session_params_entry(dict e
+        , save_state_flags_t flags)
+    {
+        entry ent = extract<entry>(e);
+        std::vector<char> buf;
+        bencode(std::back_inserter(buf), ent);
+        return lt::read_session_params(buf, flags);
+    }
+
+    session_params read_session_params_buffer(bytes const& bytes
+        , save_state_flags_t flags)
+    {
+        return lt::read_session_params(bytes.arr, flags);
+    }
+
+    bytes write_session_params_bytes(session_params const& sp
+        , save_state_flags_t flags)
+    {
+        auto buf = write_session_params_buf(sp, flags);
+        return bytes(buf.data(), buf.size());
+    }
+
+    struct dict_to_settings
+    {
+        dict_to_settings()
+        {
+            converter::registry::push_back(
+                &convertible, &construct, type_id<settings_pack>()
+            );
+        }
+
+        static void* convertible(PyObject* x)
+        {
+            return PyDict_Check(x) ? x: nullptr;
+        }
+
+        static void construct(PyObject* x, converter::rvalue_from_python_stage1_data* data)
+        {
+            void* storage = ((converter::rvalue_from_python_storage<lt::settings_pack>*)data)->storage.bytes;
+
+            dict o(borrowed(x));
+            auto p = new (storage) lt::settings_pack;
+            data->convertible = p;
+            make_settings_pack(*p, o);
+        }
+    };
+
+    struct settings_to_dict
+    {
+        static PyObject* convert(lt::settings_pack const& p)
+        {
+            dict ret = make_dict(p);
+            return incref(ret.ptr());
+        }
+    };
+
 } // anonymous namespace
 
 struct dummy1 {};
@@ -785,6 +841,9 @@ struct dummy11 {};
 
 void bind_session()
 {
+    dict_to_settings();
+    to_python_converter<lt::settings_pack, settings_to_dict>();
+
 #ifndef TORRENT_DISABLE_DHT
     void (lt::session::*dht_get_immutable_item)(sha1_hash const&) = &lt::session::dht_get_item;
     sha1_hash (lt::session::*dht_put_immutable_item)(entry data) = &lt::session::dht_put_item;
@@ -845,7 +904,7 @@ void bind_session()
         .def_readonly("dht_node_cache", &session_status::dht_node_cache)
         .def_readonly("dht_torrents", &session_status::dht_torrents)
         .def_readonly("dht_global_nodes", &session_status::dht_global_nodes)
-        .def_readonly("active_requests", &session_status::active_requests)
+        .add_property("active_requests", make_getter(&session_status::active_requests, return_value_policy<return_by_value>()))
         .def_readonly("dht_total_allocations", &session_status::dht_total_allocations)
 #endif // TORRENT_DISABLE_DHT
         .add_property("utp_stats", &get_utp_stats)
@@ -918,6 +977,33 @@ void bind_session()
         .add_property("resume_data", PROP(&add_torrent_params::resume_data))
 #endif
       ;
+
+#ifndef TORRENT_DISABLE_DHT
+    class_<lt::dht::dht_state>("dht_state")
+        .add_property("nids", &lt::dht::dht_state::nids)
+        .add_property("nodes", &lt::dht::dht_state::nodes)
+        .add_property("nodes6", &lt::dht::dht_state::nodes6)
+        ;
+#endif
+
+    class_<session_params>("session_params")
+        .def(init<settings_pack const&>())
+        .def(init<>())
+        // TODO: since there's not binding for settings_pack, but they are just
+        // represented as dicts, this won't return a reference, but a copy of
+        // the settings
+        .add_property("settings", PROP(&session_params::settings))
+#ifndef TORRENT_DISABLE_DHT
+        .def_readwrite("dht_state", &session_params::dht_state)
+#endif
+        .add_property("ext_state", PROP(&session_params::ext_state))
+        .def_readwrite("ip_filter", &session_params::ip_filter)
+        ;
+
+    def("read_session_params", &read_session_params_entry, (arg("dict"), arg("flags")=save_state_flags_t::all()));
+    def("read_session_params", &read_session_params_buffer, (arg("buffer"), arg("flags")=save_state_flags_t::all()));
+    def("write_session_params", &lt::write_session_params, (arg("entry"), arg("flags")=save_state_flags_t::all()));
+    def("write_session_params_buf", &write_session_params_bytes, (arg("buffer"), arg("flags")=save_state_flags_t::all()));
 
     enum_<storage_mode_t>("storage_mode_t")
         .value("storage_mode_allocate", storage_mode_allocate)
@@ -1025,6 +1111,8 @@ void bind_session()
 
     {
     scope s = class_<lt::session, boost::noncopyable>("session", no_init)
+        .def(init<lt::session_params>())
+        .def(init<>())
         .def("__init__", boost::python::make_constructor(&make_session
                 , default_call_policies()
                 , (arg("settings"), arg("flags")=

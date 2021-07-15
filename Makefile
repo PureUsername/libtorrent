@@ -1,4 +1,4 @@
-VERSION=2.0.3
+VERSION=2.0.4
 
 BUILD_CONFIG=release link=shared crypto=openssl warnings=off address-model=64
 
@@ -562,6 +562,7 @@ HEADERS = \
   aux_/alloca.hpp                   \
   aux_/allocating_handler.hpp       \
   aux_/announce_entry.hpp           \
+  aux_/apply_pad_files.hpp          \
   aux_/array.hpp                    \
   aux_/bandwidth_limit.hpp          \
   aux_/bandwidth_manager.hpp        \
@@ -726,6 +727,8 @@ SIM_SOURCES = \
   create_torrent.cpp \
   create_torrent.hpp \
   fake_peer.hpp \
+  disk_io.hpp \
+  disk_io.cpp \
   make_proxy_settings.hpp \
   setup_dht.cpp \
   setup_dht.hpp \
@@ -818,9 +821,11 @@ LIBSIM_TESTS = \
 
 TEST_SOURCES = \
   enum_if.cpp \
+  test_add_torrent.cpp \
   test_alert_manager.cpp \
   test_alert_types.cpp \
   test_alloca.cpp \
+  test_apply_pad.cpp \
   test_auto_unchoke.cpp \
   test_bandwidth_limiter.cpp \
   test_bdecode.cpp \
@@ -959,6 +964,11 @@ TEST_TORRENTS = \
   empty_httpseed.torrent \
   empty_path.torrent \
   empty_path_multi.torrent \
+  empty-files-1.torrent \
+  empty-files-2.torrent \
+  empty-files-3.torrent \
+  empty-files-4.torrent \
+  empty-files-5.torrent \
   hidden_parent_path.torrent \
   httpseed.torrent \
   invalid_file_size.torrent \
@@ -1033,6 +1043,7 @@ TEST_TORRENTS = \
   v2_zero_root.torrent \
   v2_zero_root_small.torrent \
   v2_hybrid.torrent \
+  v2_invalid_root_hash.torrent \
   zero.torrent \
   zero2.torrent
 
